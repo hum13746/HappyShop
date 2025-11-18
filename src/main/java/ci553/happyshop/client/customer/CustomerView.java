@@ -166,7 +166,7 @@ public class CustomerView  {
         vbReceiptPage = new VBox(15, laPageTitle, taReceipt, btnCloseReceipt);
         vbReceiptPage.setPrefWidth(COLUMN_WIDTH);
         vbReceiptPage.setAlignment(Pos.TOP_CENTER);
-        vbReceiptPage.setStyle(UIStyle.rootStyleYellow);
+        vbReceiptPage.setStyle(UIStyle.rootStyleBlue);
         return vbReceiptPage;
     }
 
