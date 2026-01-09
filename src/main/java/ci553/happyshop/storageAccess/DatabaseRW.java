@@ -4,6 +4,7 @@ import ci553.happyshop.catalogue.Product;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The DatabaseRW interface defines the contract for interacting with the product database.
@@ -66,7 +67,8 @@ public interface DatabaseRW {
      */
     void updateProduct(String id, String des, double price, String imageName, int stock) throws SQLException;
 
-
+    // add at the bottom of the interface
+    void updateStock(String productId, int newQty) throws SQLException;
     // Deletes a product identified by its ID.
     void deleteProduct(String id) throws SQLException;
 
@@ -86,6 +88,14 @@ public interface DatabaseRW {
      * @return true if the ID is available, false if it already exists in the database
      */
     boolean isProIdAvailable(String productId) throws SQLException;
+    /**
+     * Returns all products whose current stock is <= the given threshold.
+     * @param threshold max stock level to include
+     * @return list of products with low stock (never null, may be empty)
+     */
+    ArrayList<Product> getLowStockProducts(int threshold) throws SQLException;
+
+    List<Product> getAllProducts();
 }
 
 

@@ -46,17 +46,33 @@ public class OrderFileManager {
 
     //Creates a new order file in the specified directory with the given content.
     public static void createOrderFile(Path dir, int orderId, String orderDetail) throws IOException {
-        String orderFileName = String.valueOf(orderId)+".txt";
-        Path path = dir.resolve(orderFileName); // eg. orders/ordered/12.txt
-        if(Files.notExists(path)) {
+        String orderFileName = orderId + ".txt";
+        Path path = dir.resolve(orderFileName);          // e.g. orders/ordered/12.txt
+
+        /*  ensure parent folders exist  */
+        Files.createDirectories(path.getParent());
+
+        if (Files.notExists(path)) {
             Files.createFile(path);
-            try (BufferedWriter writer = Files.newBufferedWriter(path)) {
-                writer.write(orderDetail);
+            try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+                /*  fixed header – matches what the parser expects  */
+                writer.write("OrderId: " + orderId);
                 writer.newLine();
-                System.out.println(path + " created");
+                writer.write("State: Ordered");
+                writer.newLine();
+                writer.write("OrderedDateTime: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                writer.newLine();
+                writer.write("ProgressingDateTime:");
+                writer.newLine();
+                writer.write("CollectedDateTime:");
+                writer.newLine();
+                writer.write("Items:");
+                writer.newLine();
+                writer.write(orderDetail);   // existing item list + total
+                writer.newLine();
             }
-        }
-        else{
+            System.out.println(path + " created");
+        } else {
             System.out.println(path + " already exists");
         }
     }

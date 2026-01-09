@@ -6,17 +6,14 @@ import ci553.happyshop.client.orderTracker.OrderTracker;
 import ci553.happyshop.client.picker.PickerModel;
 import ci553.happyshop.storageAccess.OrderFileManager;
 import ci553.happyshop.utility.StorageLocation;
-
+import java.math.BigDecimal;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -43,24 +40,16 @@ import java.util.stream.Stream;
 public class OrderHub  {
     private static OrderHub orderHub; //singleton instance
 
-    private final Path orderedPath = StorageLocation.orderedPath;
+    private final Path orderedPath   = StorageLocation.orderedPath;
     private final Path progressingPath = StorageLocation.progressingPath;
-    private final Path collectedPath = StorageLocation.collectedPath;
+    private final Path collectedPath  = StorageLocation.collectedPath;
 
     private TreeMap<Integer,OrderState> orderMap = new TreeMap<>();
     private TreeMap<Integer,OrderState> OrderedOrderMap = new TreeMap<>();
     private TreeMap<Integer,OrderState> progressingOrderMap = new TreeMap<>();
 
-    /**
-     * Two Lists to hold all registered OrderTracker and PickerModel observers.
-     * These observers are notified whenever the orderMap is updated,
-     * but each observer is only notified of the parts of the orderMap that are relevant to them.
-     * - OrderTrackers will be notified of the full orderMap, including all orders (ordered, progressing, collected),
-     *   but collected orders are shown for a limited time (10 seconds).
-     * - PickerModels will be notified only of orders in the "ordered" or "progressing" states, filtering out collected orders.
-     */
     private ArrayList<OrderTracker> orderTrackerList = new ArrayList<>();
-    private ArrayList<PickerModel> pickerModelList = new ArrayList<>();
+    private ArrayList<PickerModel> pickerModelList  = new ArrayList<>();
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
@@ -69,7 +58,7 @@ public class OrderHub  {
     public static OrderHub getOrderHub() {
         if (orderHub == null)
             orderHub = new OrderHub();
-            return orderHub;
+        return orderHub;
     }
 
     //Creates a new order using the provided list of products.
@@ -88,7 +77,10 @@ public class OrderHub  {
         orderMap.put(orderId, theOrder.getState()); //add the order to orderMap,state is Ordered initially
         notifyOrderTrackers(); //notify OrderTrackers
         notifyPickerModels();//notify pickers
-        
+
+        keepLastNOrders(orderedPath, 4);   // keep newest 4
+        OrderFileManager.createOrderFile(orderedPath, orderId, orderDetail);
+
         return theOrder;
     }
 
@@ -96,7 +88,7 @@ public class OrderHub  {
     public void registerOrderTracker(OrderTracker orderTracker){
         orderTrackerList.add(orderTracker);
     }
-     //Notifies all registered observer_OrderTrackers to update and display the latest orderMap.
+    //Notifies all registered observer_OrderTrackers to update and display the latest orderMap.
     public void notifyOrderTrackers(){
         for(OrderTracker orderTracker : orderTrackerList){
             orderTracker.setOrderMap(orderMap);
@@ -122,8 +114,7 @@ public class OrderHub  {
 
     // Filters orderMap that match the specified state, a helper class used by notifyPickerModel()
     private TreeMap<Integer, OrderState> filterOrdersByState(OrderState state) {
-        TreeMap<Integer, OrderState> filteredOrderMap = new TreeMap<>(); // New map to hold filtered orders
-        // Loop through the orderMap and add matching orders to filteredOrders
+        TreeMap<Integer, OrderState> filteredOrderMap = new TreeMap<>();
         for (Map.Entry<Integer, OrderState> entry : orderMap.entrySet()) {
             if (entry.getValue() == state) {
                 filteredOrderMap.put(entry.getKey(), entry.getValue());
@@ -144,10 +135,10 @@ public class OrderHub  {
 
             //change orderState in order file and move the file to new state folder
             switch(newState){
-                case OrderState.Progressing:
+                case Progressing:
                     OrderFileManager.updateAndMoveOrderFile(orderId, newState,orderedPath,progressingPath);
                     break;
-                case OrderState.Collected:
+                case Collected:
                     OrderFileManager.updateAndMoveOrderFile(orderId, newState,progressingPath,collectedPath);
                     removeCollectedOrder(orderId); //Scheduled removal
                     break;
@@ -157,17 +148,11 @@ public class OrderHub  {
 
     /**
      * Removes collected orders from the system after they have been collected for 10 seconds.
-     *
-     * This ensures that collected orders are cleared from the active order pool and are no longer displayed
-     * by the OrderTracker after the brief period. This keeps the system focused on orders in the
-     * "ordered" and "progressing" states.
-     * The 10-second delay gives enough time for any final updates, and providing a short window for review of completed orders.
      */
     private void removeCollectedOrder(int orderId) {
         if (orderMap.containsKey(orderId)) {
-            // Schedule removal after a few seconds
             scheduler.schedule(() -> {
-                orderMap.remove(orderId); //remove collected order
+                orderMap.remove(orderId);
                 System.out.println("Order " + orderId + " removed from tracker and OrdersMap.");
                 notifyOrderTrackers();
             }, 10, TimeUnit.SECONDS );
@@ -185,49 +170,39 @@ public class OrderHub  {
     }
 
     //Initializes the internal order map by loading the uncollected orders from the file system.
-    // Called during system startup by the Main class.
     public void initializeOrderMap(){
         ArrayList<Integer> orderedIds = orderIdsLoader(orderedPath);
         ArrayList<Integer> progressingIds = orderIdsLoader(progressingPath);
-        if(orderedIds.size()>0){
+        if(!orderedIds.isEmpty()){
             for(Integer orderId : orderedIds){
                 orderMap.put(orderId, OrderState.Ordered);
             }
         }
-        if(progressingIds.size()>0){
+        if(!progressingIds.isEmpty()){
             for(Integer orderId : progressingIds){
                 orderMap.put(orderId, OrderState.Progressing);
             }
         }
         notifyOrderTrackers();
         notifyPickerModels();
-        System.out.println("orderMap initilized. "+ orderMap.size() + " orders in total, including:");
+        System.out.println("orderMap initialized. "+ orderMap.size() + " orders in total, including:");
         System.out.println( orderedIds.size() + " Ordered orders, " +progressingIds.size() + " Progressing orders " );
     }
 
     // Loads a list of order IDs from the specified directory.
-    // Used internally by initializeOrderMap().
     private ArrayList<Integer> orderIdsLoader(Path dir) {
         ArrayList<Integer> orderIds = new ArrayList<>();
-
         if (Files.exists(dir) && Files.isDirectory(dir)) {
             try (Stream<Path> fileStream = Files.list(dir)) {
-                // Process the stream without checking it separately
                 List<Path> files = fileStream.filter(Files::isRegularFile).toList();
-
-                if (files.isEmpty()) {
-                    System.out.println(dir + " is empty");
-                } else {
-                    for (Path file : files) {
-                        String fileName = file.getFileName().toString();
-                        if (fileName.endsWith(".txt")) { // Ensure it's a .txt file
-                            try {
-                                int orderId = Integer.parseInt(fileName.substring(0, fileName.lastIndexOf('.')));
-                                orderIds.add(orderId);
-                                System.out.println(orderId);
-                            } catch (NumberFormatException e) {
-                                System.out.println("Invalid file name: " + fileName);
-                            }
+                for (Path file : files) {
+                    String fileName = file.getFileName().toString();
+                    if (fileName.endsWith(".txt")) {
+                        try {
+                            int orderId = Integer.parseInt(fileName.substring(0, fileName.lastIndexOf('.')));
+                            orderIds.add(orderId);
+                        } catch (NumberFormatException e) {
+                            System.out.println("Invalid file name: " + fileName);
                         }
                     }
                 }
@@ -240,4 +215,80 @@ public class OrderHub  {
         return orderIds;
     }
 
+    /* ----------------------------------------------------------
+     *  NEW – give Manager a live copy of ALL orders (ID → Order)
+     * ---------------------------------------------------------- */
+    public Map<Integer, Order> getAllOrders() {
+        Map<Integer, Order> copy = new LinkedHashMap<>();
+        for (Integer id : orderMap.keySet()) {
+            try {
+                Order o = readOrderFromDisk(id);
+                if (o != null) copy.put(id, o);
+            } catch (IOException e) {
+                System.out.println("Manager read order " + id + " : " + e.getMessage());
+            }
+        }
+        return copy;
+    }
+    private void keepLastNOrders(Path dir, int n) throws IOException {
+        if (!Files.exists(dir)) return;
+        try (Stream<Path> files = Files.list(dir).filter(p -> p.toString().endsWith(".txt"))) {
+            List<Path> sorted = files
+                    .sorted(Comparator.comparing(p -> p.getFileName().toString()))
+                    .toList();
+            for (int i = 0; i < sorted.size() - n; i++) {
+                Files.deleteIfExists(sorted.get(i));
+            }
+        }
+    }
+    /*  helper – try each folder until we find the order file  */
+    private Order readOrderFromDisk(int orderId) throws IOException {
+        Path[] folders = { orderedPath, progressingPath, collectedPath };
+        for (Path folder : folders) {
+            Path file = folder.resolve(orderId + ".txt");
+            if (!Files.exists(file)) continue;
+
+            List<String> lines = Files.readAllLines(file);
+            if (lines.isEmpty()) return null;
+
+            /* ----  parse header lines until we hit “Items:”  ---- */
+            String line;
+            Iterator<String> it = lines.iterator();
+            int    id   = -1;
+            String date = null;
+            OrderState st = null;
+
+            while (it.hasNext()) {
+                line = it.next();
+                if (line.startsWith("OrderId:"))        id   = Integer.parseInt(line.substring(8).trim());
+                else if (line.startsWith("OrderedDateTime:")) date = line.substring(16).trim();
+                else if (line.startsWith("State:"))      st   = OrderState.valueOf(line.substring(6).trim());
+                else if (line.equals("Items:")) break;   // stop – rest are products
+            }
+
+            /* ----  rebuild products  ---- */
+            ArrayList<Product> items = new ArrayList<>();
+            while (it.hasNext()) {
+                line = it.next().trim();
+                if (line.isEmpty()) continue;
+                /*  expected: 0001    40 inch TV         ( 2) £ 538.00  */
+                String[] p = line.split("\\s+");
+                if (p.length < 4) continue;              // not an item line
+
+                String productId = p[0];
+                StringBuilder desc = new StringBuilder(p[1]);
+                for (int i = 2; i < p.length - 3; i++) desc.append(" ").append(p[i]);
+
+                int qty = Integer.parseInt(p[p.length - 3].replaceAll("[()]", ""));
+                BigDecimal price = new BigDecimal(p[p.length - 1].replace("£", ""));
+
+                Product pr = new Product(productId, desc.toString(), "", price.doubleValue(), 0);
+                pr.setOrderedQuantity(qty);
+                items.add(pr);
+            }
+            return new Order(id, st, date, items);
+        }
+        return null;
+    }
 }
+

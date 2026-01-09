@@ -12,9 +12,9 @@ package ci553.happyshop.orderManagement;
  * which improves code clarity, reduces errors from invalid strings or integers,
  * and makes state management more explicit and maintainable across the system.
  */
-
 public enum OrderState {
     Ordered,
+    Paid,          // NEW
     Progressing,
     Collected
 }

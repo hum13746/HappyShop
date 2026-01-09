@@ -4,6 +4,7 @@ import ci553.happyshop.catalogue.Product;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -197,6 +198,39 @@ public class DerbyRW implements DatabaseRW {
         return insufficientProducts;
     }
 
+    // Manager updates stock directly
+    public void updateStock(String productId, int newQty) throws SQLException {
+        lock.lock();
+        String sql = "UPDATE ProductTable SET inStock = ? WHERE productID = ?";
+        try (Connection conn = DriverManager.getConnection(dbURL);
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, newQty);
+            ps.setString(2, productId);
+            ps.executeUpdate();
+        } finally {
+            lock.unlock();
+        }
+    }
+    // Return all products with stock <= threshold
+    public ArrayList<Product> getLowStockProducts(int threshold) throws SQLException {
+        ArrayList<Product> list = new ArrayList<>();
+        String sql = "SELECT * FROM ProductTable WHERE inStock <= ?";
+        try (Connection conn = DriverManager.getConnection(dbURL);
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, threshold);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(makeProObjFromDbRecord(rs));
+                }
+            }
+        }
+        return list;
+    }
+
+    @Override
+    public List<Product> getAllProducts() {
+        return List.of();
+    }
 
     //warehouse edits an existing product
     public void updateProduct(String id, String des, double price, String iName, int stock) throws SQLException {

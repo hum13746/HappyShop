@@ -1,135 +1,177 @@
 package ci553.happyshop.client.customer;
-
+import java.io.File;
+import ci553.happyshop.catalogue.Order;
+import ci553.happyshop.catalogue.Product;
+import ci553.happyshop.orderManagement.OrderHub;
 import ci553.happyshop.utility.UIStyle;
 import ci553.happyshop.utility.WinPosManager;
 import ci553.happyshop.utility.WindowBounds;
+import javafx.animation.SequentialTransition;
+import javafx.animation.Timeline;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
 import javafx.stage.Stage;
-
+import javafx.util.Duration;
+import ci553.happyshop.storageAccess.DerbyRW;
 import java.io.IOException;
 import java.sql.SQLException;
-
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
+import javafx.scene.layout.HBox;
+import javafx.application.Platform;
+import ci553.happyshop.LoginDialog;
 /**
- * The CustomerView is separated into two sections by a line :
- *
- * 1. Search Page – Always visible, allowing customers to browse and search for products.
- * 2. the second page – display either the Trolley Page or the Receipt Page
- *    depending on the current context. Only one of these is shown at a time.
+ * Four separate pop-up bricks: Search, Trolley, Orders, Receipt
  */
+public class CustomerView {
 
-public class CustomerView  {
     public CustomerController cusController;
 
-    private final int WIDTH = UIStyle.customerWinWidth;
+    private final int WIDTH  = UIStyle.customerWinWidth;
     private final int HEIGHT = UIStyle.customerWinHeight;
     private final int COLUMN_WIDTH = WIDTH / 2 - 10;
 
-    private HBox hbRoot; // Top-level layout manager
-    private VBox vbTrolleyPage;  //vbTrolleyPage and vbReceiptPage will swap with each other when need
-    private VBox vbReceiptPage;
+    /*  four pop-up windows */
+    private Stage searchStage, trolleyStage, ordersStage, receiptStage;
 
-    TextField tfId; //for user input on the search page. Made accessible so it can be accessed or modified by CustomerModel
-    TextField tfName; //for user input on the search page. Made accessible so it can be accessed by CustomerModel
+    /*  left-search controls */
+    TextField tfId;
+    TextField tfName;
+    private ImageView ivProduct;
+    private Label lbProductInfo;
 
-    //four controllers needs updating when program going on
-    private ImageView ivProduct; //image area in searchPage
-    private Label lbProductInfo;//product text info in searchPage
-    private TextArea taTrolley; //in trolley Page
-    private TextArea taReceipt;//in receipt page
+    /*  trolley controls */
+    private VBox vbTrolleyRows;
+    private Label lbTrolleyTotal;
 
-    // Holds a reference to this CustomerView window for future access and management
-    // (e.g., positioning the removeProductNotifier when needed).
-    private Stage viewWindow;
+    /*  orders table */
+    private TableView<OrderRow> orderTable = new TableView<>();
 
-    public void start(Stage window) {
-        VBox vbSearchPage = createSearchPage();
-        vbTrolleyPage = CreateTrolleyPage();
-        vbReceiptPage = createReceiptPage();
+    /*  receipt control */
+    private TextArea taReceipt;
 
-        // Create a divider line
-        Line line = new Line(0, 0, 0, HEIGHT);
-        line.setStrokeWidth(4);
-        line.setStroke(Color.PINK);
-        VBox lineContainer = new VBox(line);
-        lineContainer.setPrefWidth(4); // Give it some space
-        lineContainer.setAlignment(Pos.CENTER);
+    private Stage viewWindow;   // owner
 
-        hbRoot = new HBox(10, vbSearchPage, lineContainer, vbTrolleyPage); //initialize to show trolleyPage
-        hbRoot.setAlignment(Pos.CENTER);
-        hbRoot.setStyle(UIStyle.rootStyle);
+    /* =================================================================== */
+    public void start(Stage ownerWindow) {
+        viewWindow = ownerWindow;
 
-        Scene scene = new Scene(hbRoot, WIDTH, HEIGHT);
-        window.setScene(scene);
-        window.setTitle("🛒 HappyShop Customer Client");
-        WinPosManager.registerWindow(window,WIDTH,HEIGHT); //calculate position x and y for this window
-        window.show();
-        viewWindow=window;// Sets viewWindow to this window for future reference and management.
+        /*  1. create controller  */
+        cusController = new CustomerController();
+        cusController.cusModel = new CustomerModel();
+        cusController.cusModel.databaseRW = new DerbyRW();
+        cusController.setView(this);                    // inject view
+        cusController.cusModel.cusView = this;          // <<<  MISSING LINE
+
+        /*  3. now build bricks  */
+        Node search   = createSearchPage();
+        Node trolley  = createTrolleyTab();
+        Node orders   = createOrdersTab();
+        Node receipt  = createReceiptTab();
+
+        double w = COLUMN_WIDTH * 1.5;
+        double h = HEIGHT   * 0.80;
+
+        searchStage   = popUpBrick(ownerWindow, "Search",  search,  0,   0,   w, h);
+        trolleyStage  = popUpBrick(ownerWindow, "Trolley", trolley, w+20,0,   w, h);
+        ordersStage   = popUpBrick(ownerWindow, "Orders",  orders,  0,   h+40,w, h);
+        receiptStage  = popUpBrick(ownerWindow, "Receipt", receipt, w+20,h+40,w, h);
+
+
     }
 
+    /* ------------------------------------------------------------------- */
+    private Stage popUpBrick(Stage owner, String title, Node content, double x, double y, double w, double h) {
+        Stage stage = new Stage();
+        stage.setTitle(title);
+        Scene scene = new Scene((Parent) content, w, h);
+
+        /*  load CSS as plain file  */
+        File cssFile = new File("style.css");   // sits beside pom.xml
+        if (!cssFile.exists()) {
+            throw new RuntimeException("CSS file not found at " + cssFile.getAbsolutePath());
+        }
+        scene.getStylesheets().add(cssFile.toURI().toString());
+
+        stage.setScene(scene);
+        stage.setX(x);
+        stage.setY(y);
+        stage.initOwner(owner);
+        stage.show();
+        return stage;
+    }
+
+    /* ------------------------------------------------------------------- */
     private VBox createSearchPage() {
         Label laPageTitle = new Label("Search by Product ID/Name");
-        laPageTitle.setStyle(UIStyle.labelTitleStyle);
+        laPageTitle.getStyleClass().add("title");
 
         Label laId = new Label("ID:      ");
         laId.setStyle(UIStyle.labelStyle);
-        tfId = new TextField();
-        tfId.setPromptText("eg. 0001");
-        tfId.setStyle(UIStyle.textFiledStyle);
+        tfId = new TextField(); tfId.setPromptText("eg. 0001");
+        tfId.getStyleClass().add("text-field");
         HBox hbId = new HBox(10, laId, tfId);
 
         Label laName = new Label("Name:");
         laName.setStyle(UIStyle.labelStyle);
-        tfName = new TextField();
-        tfName.setPromptText("implement it if you want");
+        tfName = new TextField(); tfName.setPromptText("implement it if you want");
         tfName.setStyle(UIStyle.textFiledStyle);
         HBox hbName = new HBox(10, laName, tfName);
 
-        Label laPlaceHolder = new Label(  " ".repeat(15)); //create left-side spacing so that this HBox aligns with others in the layout.
+        Label laPlaceHolder = new Label(" ".repeat(15));
         Button btnSearch = new Button("Search");
-        btnSearch.setStyle(UIStyle.buttonStyle);
+        btnSearch.getStyleClass().add("btn");
         btnSearch.setOnAction(this::buttonClicked);
         Button btnAddToTrolley = new Button("Add to Trolley");
-        btnAddToTrolley.setStyle(UIStyle.buttonStyle);
+        btnAddToTrolley.getStyleClass().add("btn");
         btnAddToTrolley.setOnAction(this::buttonClicked);
-        HBox hbBtns = new HBox(10, laPlaceHolder,btnSearch, btnAddToTrolley);
+        HBox hbBtns = new HBox(10, laPlaceHolder, btnSearch, btnAddToTrolley);
 
         ivProduct = new ImageView("imageHolder.jpg");
-        ivProduct.setFitHeight(60);
-        ivProduct.setFitWidth(60);
-        ivProduct.setPreserveRatio(true); // Image keeps its original shape and fits inside 60×60
-        ivProduct.setSmooth(true); //make it smooth and nice-looking
+        ivProduct.setFitHeight(60); ivProduct.setFitWidth(60);
+        ivProduct.setPreserveRatio(true); ivProduct.setSmooth(true);
 
         lbProductInfo = new Label("Thank you for shopping with us.");
         lbProductInfo.setWrapText(true);
-        lbProductInfo.setMinHeight(Label.USE_PREF_SIZE);  // Allow auto-resize
         lbProductInfo.setStyle(UIStyle.labelMulLineStyle);
         HBox hbSearchResult = new HBox(5, ivProduct, lbProductInfo);
         hbSearchResult.setAlignment(Pos.CENTER_LEFT);
 
         VBox vbSearchPage = new VBox(15, laPageTitle, hbId, hbName, hbBtns, hbSearchResult);
+        vbSearchPage.getStyleClass().add("card");
         vbSearchPage.setPrefWidth(COLUMN_WIDTH);
         vbSearchPage.setAlignment(Pos.TOP_CENTER);
         vbSearchPage.setStyle("-fx-padding: 15px;");
-
         return vbSearchPage;
     }
 
-    private VBox CreateTrolleyPage() {
-        Label laPageTitle = new Label("🛒🛒  Trolley 🛒🛒");
-        laPageTitle.setStyle(UIStyle.labelTitleStyle);
+    /* ------------------------------------------------------------------- */
+    private Node createTrolleyTab() {
+        Label laTitle = new Label("🛒 Trolley");
+        laTitle.setStyle(UIStyle.labelTitleStyle);
 
-        taTrolley = new TextArea();
-        taTrolley.setEditable(false);
-        taTrolley.setPrefSize(WIDTH/2, HEIGHT-50);
+        vbTrolleyRows = new VBox(5);
+        vbTrolleyRows.setStyle("-fx-padding: 5;");
+
+        ScrollPane sp = new ScrollPane(vbTrolleyRows);
+        sp.setFitToWidth(true);
+        sp.setPrefSize(COLUMN_WIDTH, HEIGHT - 150);
 
         Button btnCancel = new Button("Cancel");
         btnCancel.setOnAction(this::buttonClicked);
@@ -139,80 +181,193 @@ public class CustomerView  {
         btnCheckout.setOnAction(this::buttonClicked);
         btnCheckout.setStyle(UIStyle.buttonStyle);
 
-        HBox hbBtns = new HBox(10, btnCancel,btnCheckout);
+        HBox hbBtns = new HBox(10, btnCancel, btnCheckout);
         hbBtns.setStyle("-fx-padding: 15px;");
         hbBtns.setAlignment(Pos.CENTER);
 
-        vbTrolleyPage = new VBox(15, laPageTitle, taTrolley, hbBtns);
-        vbTrolleyPage.setPrefWidth(COLUMN_WIDTH);
-        vbTrolleyPage.setAlignment(Pos.TOP_CENTER);
-        vbTrolleyPage.setStyle("-fx-padding: 15px;");
-        return vbTrolleyPage;
+        lbTrolleyTotal = new Label("Trolley Total: £0.00");
+        lbTrolleyTotal.setStyle("-fx-font-size: 14; -fx-font-weight: bold; -fx-padding: 5 0 0 0;");
+
+        VBox vb = new VBox(15, laTitle, sp, lbTrolleyTotal, hbBtns);
+        vb.setAlignment(Pos.TOP_CENTER);
+        vb.setStyle("-fx-padding: 15px;");
+
+        return vb;
     }
 
-    private VBox createReceiptPage() {
-        Label laPageTitle = new Label("Receipt");
-        laPageTitle.setStyle(UIStyle.labelTitleStyle);
+    /* ------------------------------------------------------------------- */
+    private Node createOrdersTab() {
+        Label laTitle = new Label("Your Orders – Live Status");
+        laTitle.setStyle("-fx-font-size: 15; -fx-padding: 0 0 10 0;");
+
+        TableColumn<OrderRow, String> colId = new TableColumn<>("Order ID");
+        colId.setCellValueFactory(new PropertyValueFactory<>("orderId"));
+
+        TableColumn<OrderRow, String> colState = new TableColumn<>("State");
+        colState.setCellValueFactory(new PropertyValueFactory<>("state"));
+
+        TableColumn<OrderRow, String> colDate = new TableColumn<>("Ordered");
+        colDate.setCellValueFactory(new PropertyValueFactory<>("dateTime"));
+
+        TableColumn<OrderRow, String> colTotal = new TableColumn<>("Total");
+        colTotal.setCellValueFactory(new PropertyValueFactory<>("total"));
+
+        orderTable.getColumns().setAll(colId, colState, colDate, colTotal);
+        orderTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        Button refreshBtn = new Button("Refresh");
+        refreshBtn.setOnAction(e -> refreshOrderTable());
+
+        VBox vb = new VBox(10, laTitle, orderTable, refreshBtn);
+        vb.setAlignment(Pos.TOP_CENTER);
+        vb.setStyle("-fx-padding: 15px;");
+        return vb;
+    }
+
+
+    public void refreshOrderTable() {
+        List<Order> all = new ArrayList<>(OrderHub.getOrderHub().getAllOrders().values());
+        all.sort(Comparator.comparing(Order::getOrderedDateTime).reversed());
+        List<Order> recent = all.stream().limit(4).toList();
+
+        ObservableList<OrderRow> rows = FXCollections.observableArrayList();
+        for (Order o : recent) {
+            rows.add(new OrderRow(
+                    String.valueOf(o.getOrderId()),
+                    o.getState().toString(),
+                    o.getOrderedDateTime(),
+                    String.format("£%.2f", o.getOrderTotal())
+            ));
+        }
+        orderTable.setItems(rows);
+    }
+
+    /* ------------------------------------------------------------------- */
+    private Node createReceiptTab() {
+        Label laTitle = new Label("Receipt");
+        laTitle.setStyle(UIStyle.labelTitleStyle);
 
         taReceipt = new TextArea();
         taReceipt.setEditable(false);
-        taReceipt.setPrefSize(WIDTH/2, HEIGHT-50);
+        taReceipt.setPrefSize(COLUMN_WIDTH, HEIGHT - 150);
 
-        Button btnCloseReceipt = new Button("OK & Close"); //btn for closing receipt and showing trolley page
-        btnCloseReceipt.setStyle(UIStyle.buttonStyle);
+        /*  Pay button  */
+        Button btnPay = new Button("Pay");
+        btnPay.setStyle(UIStyle.buttonStyle);
+        btnPay.setOnAction(e -> {
+            try { cusController.doAction("Pay"); }
+            catch (SQLException | IOException ex) { ex.printStackTrace(); }
+        });
 
-        btnCloseReceipt.setOnAction(this::buttonClicked);
+        Button btnClose = new Button("OK & Close");
+        btnClose.setStyle(UIStyle.buttonStyle);
+        btnClose.setOnAction(this::buttonClicked);
 
-        vbReceiptPage = new VBox(15, laPageTitle, taReceipt, btnCloseReceipt);
-        vbReceiptPage.setPrefWidth(COLUMN_WIDTH);
-        vbReceiptPage.setAlignment(Pos.TOP_CENTER);
-        vbReceiptPage.setStyle(UIStyle.rootStyleYellow);
-        return vbReceiptPage;
+        /*  button bar  */
+        HBox btnBar = new HBox(10, btnPay, btnClose);
+        btnBar.setAlignment(Pos.CENTER);
+
+        VBox vb = new VBox(15, laTitle, taReceipt, btnBar);
+        vb.setAlignment(Pos.TOP_CENTER);
+        vb.setStyle("-fx-padding: 15px;");
+        return vb;
     }
 
-
+    /* ------------------------------------------------------------------- */
     private void buttonClicked(ActionEvent event) {
-        try{
-            Button btn = (Button)event.getSource();
+        try {
+            Button btn = (Button) event.getSource();
             String action = btn.getText();
-            if(action.equals("Add to Trolley")){
-                showTrolleyOrReceiptPage(vbTrolleyPage); //ensure trolleyPage shows if the last customer did not close their receiptPage
-            }
-            if(action.equals("OK & Close")){
-                showTrolleyOrReceiptPage(vbTrolleyPage);
-            }
             cusController.doAction(action);
-        }
-        catch(SQLException e){
+
+            switch (action) {
+                case "Add to Trolley" -> refreshTrolleyRows();                     // refresh pop-up
+
+                case "Check Out"      -> refreshOrderTable();
+                case "OK & Close"     -> {
+                    /*  close all bricks  */
+                    searchStage.close();
+                    trolleyStage.close();
+                    ordersStage.close();
+                    receiptStage.close();
+                    viewWindow.close();
+                }
+            }
+        } catch (SQLException | IOException e) {
             e.printStackTrace();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
+    /* ------------------------------------------------------------------- */
+    public void refreshTrolleyRows() {
+        vbTrolleyRows.getChildren().clear();
+        if (cusController == null || cusController.getModel().getTrolley().isEmpty()) {
+            vbTrolleyRows.getChildren().add(new Label("Your trolley is empty"));
+            lbTrolleyTotal.setText("Trolley Total: £0.00");
+            return;
+        }
+        for (Product p : cusController.getModel().getTrolley()) {
+            String line = String.format("%s  %s  £%.2f  (qty: %d)",
+                    p.getProductId(), p.getProductDescription(),
+                    p.getUnitPrice(), p.getOrderedQuantity());
+            Label lb = new Label(line);
+            lb.setStyle("-fx-font-size: 13;");
 
+            Button removeBtn = new Button("Remove one");
+            removeBtn.setStyle(UIStyle.buttonStyle);
+            removeBtn.setOnAction(e -> {
+                try {
+                    cusController.doAction("Remove one:" + p.getProductId());
+                } catch (SQLException | IOException ex) {
+                    ex.printStackTrace();
+                }
+            });
+
+            HBox row = new HBox(10, lb, removeBtn);
+            row.setAlignment(Pos.CENTER_LEFT);
+            vbTrolleyRows.getChildren().add(row);
+        }
+        lbTrolleyTotal.setText(String.format("Trolley Total: £%.2f",
+                cusController.getModel().getTrolleyTotal()));
+    }
+    /* ------------------------------------------------------------------- */
     public void update(String imageName, String searchResult, String trolley, String receipt) {
-
         ivProduct.setImage(new Image(imageName));
         lbProductInfo.setText(searchResult);
-        taTrolley.setText(trolley);
-        if (!receipt.equals("")) {
-            showTrolleyOrReceiptPage(vbReceiptPage);
-            taReceipt.setText(receipt);
-        }
+        refreshTrolleyRows();          // <--  NEW – fill trolley window
+        if (!receipt.isEmpty()) taReceipt.setText(receipt);
     }
 
-    // Replaces the last child of hbRoot with the specified page.
-    // the last child is either vbTrolleyPage or vbReceiptPage.
-    private void showTrolleyOrReceiptPage(Node pageToShow) {
-        int lastIndex = hbRoot.getChildren().size() - 1;
-        if (lastIndex >= 0) {
-            hbRoot.getChildren().set(lastIndex, pageToShow);
-        }
-    }
-
+    /* ------------------------------------------------------------------- */
     WindowBounds getWindowBounds() {
         return new WindowBounds(viewWindow.getX(), viewWindow.getY(),
-                  viewWindow.getWidth(), viewWindow.getHeight());
+                viewWindow.getWidth(), viewWindow.getHeight());
+    }
+    public void bringReceiptToFront() {
+        receiptStage.toFront();
+    }
+    /* =================================================================== */
+    public static class OrderRow {
+        private final String orderId, state, dateTime, total;
+        public OrderRow(String orderId, String state, String dateTime, String total) {
+            this.orderId = orderId; this.state = state; this.dateTime = dateTime; this.total = total;
+        }
+        public String getOrderId() { return orderId; }
+        public String getState() { return state; }
+        public String getDateTime() { return dateTime; }
+        public String getTotal() { return total; }
+    }
+    public void closeAllBricks() {
+        searchStage.close();
+        trolleyStage.close();
+        ordersStage.close();
+        receiptStage.close();
+        viewWindow.close();
+    }
+    // wire view to controller
+    public void showInfo(String msg) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
+        alert.initOwner(receiptStage);
+        alert.showAndWait();
     }
 }
