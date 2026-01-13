@@ -4,7 +4,6 @@ import ci553.happyshop.catalogue.Product;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * The DatabaseRW interface defines the contract for interacting with the product database.
@@ -95,7 +94,7 @@ public interface DatabaseRW {
      */
     ArrayList<Product> getLowStockProducts(int threshold) throws SQLException;
 
-    List<Product> getAllProducts();
+    ArrayList<Product> getAllProducts();
 }
 
 

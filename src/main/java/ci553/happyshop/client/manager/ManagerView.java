@@ -42,6 +42,10 @@ public class ManagerView {
         model.setView(this);
         controller.setModel(model);
 
+        System.out.println("DEBUG – about to call refreshOrders()");
+        controller.refreshOrders();
+        System.out.println("DEBUG – refreshOrders() finished");
+
         TabPane tabPane = new TabPane();
 
         Tab ordersTab = new Tab("Orders");
@@ -51,6 +55,11 @@ public class ManagerView {
         Tab stockTab = new Tab("Low Stock (≤ 5)");
         stockTab.setContent(createLowStockTab());
         stockTab.setClosable(false);
+
+        Tab allOrdersTab = new Tab("All Orders");
+        allOrdersTab.setContent(createAllOrdersTab());
+        allOrdersTab.setClosable(false);
+        tabPane.getTabs().add(allOrdersTab);
 
         tabPane.getTabs().addAll(ordersTab, stockTab);
         tabPane.getStyleClass().add("manager-root");
@@ -127,6 +136,112 @@ public class ManagerView {
 
         return root;
     }
+
+    /* ----------------------------------------------------------
+     *  ALL ORDERS (FULL HISTORY) – read-only, unlimited, searchable
+     * ---------------------------------------------------------- */
+    private Node createAllOrdersTab() {
+        /* ---------- title ---------- */
+        Label title = new Label("All Orders (Full History)");
+        title.getStyleClass().add("manager-title");
+
+        /* ---------- search & date bar ---------- */
+        TextField searchField = new TextField();
+        searchField.setPromptText("Order ID, customer, item...");
+        searchField.getStyleClass().add("text-field");
+
+        DatePicker fromPicker = new DatePicker();
+        fromPicker.setPromptText("From");
+        DatePicker toPicker   = new DatePicker();
+        toPicker.setPromptText("To");
+
+        HBox filterBar = new HBox(10, searchField, fromPicker, toPicker);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
+        filterBar.setPadding(new Insets(10, 0, 10, 0));
+
+        /* ---------- unlimited table ---------- */
+        TableView<OrderRow> allTable = new TableView<>();
+        buildAllOrdersTable(allTable);
+
+        /* ---------- initial load ---------- */
+        loadAllOrders(allTable, searchField.getText(), fromPicker.getValue(), toPicker.getValue());
+
+        /* ---------- live filtering ---------- */
+        searchField.textProperty().addListener((obs, oldV, newV) ->
+                loadAllOrders(allTable, newV, fromPicker.getValue(), toPicker.getValue()));
+        fromPicker.valueProperty().addListener((obs, oldV, newV) ->
+                loadAllOrders(allTable, searchField.getText(), newV, toPicker.getValue()));
+        toPicker.valueProperty().addListener((obs, oldV, newV) ->
+                loadAllOrders(allTable, searchField.getText(), fromPicker.getValue(), newV));
+
+        /* ---------- root ---------- */
+        VBox root = new VBox(10, title, filterBar, allTable);
+        root.getStyleClass().add("manager-card");
+        root.setPadding(new Insets(15));
+        return root;
+    }
+
+    /* Builds the SAME columns as the normal orders table but NO action column */
+    private void buildAllOrdersTable(TableView<OrderRow> table) {
+        TableColumn<OrderRow, String> colId    = new TableColumn<>("Order ID");
+        colId.setCellValueFactory(new PropertyValueFactory<>("orderId"));
+
+        TableColumn<OrderRow, String> colDate  = new TableColumn<>("Date & Time");
+        colDate.setCellValueFactory(new PropertyValueFactory<>("dateTime"));
+
+        TableColumn<OrderRow, String> colState = new TableColumn<>("State");
+        colState.setCellValueFactory(new PropertyValueFactory<>("state"));
+
+        TableColumn<OrderRow, String> colItems = new TableColumn<>("Items");
+        colItems.setCellValueFactory(new PropertyValueFactory<>("items"));
+
+        TableColumn<OrderRow, String> colTotal = new TableColumn<>("Total");
+        colTotal.setCellValueFactory(new PropertyValueFactory<>("total"));
+
+        table.getColumns().setAll(colId, colDate, colState, colItems, colTotal);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+    }
+
+    /* Loads EVERY order, applies search + date filters, NO 4-row limit */
+    private void loadAllOrders(TableView<OrderRow> table,
+                               String text,
+                               LocalDate from,
+                               LocalDate to) {
+
+        Stream<Order> stream = OrderHub.getOrderHub().getAllOrders().values().stream();
+
+        /* text filter */
+        if (text != null && !text.isBlank()) {
+            String needle = text.toLowerCase();
+            stream = stream.filter(o ->
+                    String.valueOf(o.getOrderId()).contains(needle) ||
+                            o.getProductList().stream()
+                                    .anyMatch(p -> p.getProductDescription().toLowerCase().contains(needle)));
+        }
+
+        /* date filters */
+        if (from != null)
+            stream = stream.filter(o -> !LocalDate.parse(o.getOrderedDateTime().substring(0,10)).isBefore(from));
+        if (to != null)
+            stream = stream.filter(o -> !LocalDate.parse(o.getOrderedDateTime().substring(0,10)).isAfter(to));
+
+        /* newest first */
+        stream = stream.sorted(Comparator.comparing(Order::getOrderedDateTime).reversed());
+
+        /* map to rows */
+        ObservableList<OrderRow> rows = FXCollections.observableArrayList();
+        stream.forEach(o -> rows.add(new OrderRow(
+                String.valueOf(o.getOrderId()),
+                o.getOrderedDateTime(),
+                o.getState().toString(),
+                o.getProductList().size() + " items",
+                String.format("£%.2f", o.getOrderTotal())
+        )));
+
+        table.setItems(rows);
+    }
+
+
     private void buildOrderTable() {
         TableColumn<OrderRow, String> colId = new TableColumn<>("Order ID");
         colId.setCellValueFactory(new PropertyValueFactory<>("orderId"));
@@ -189,6 +304,11 @@ public class ManagerView {
         orderTable.getColumns().setAll(colId, colDate, colState, colItems, colTotal, colAction);
         orderTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
     }
+
+
+
+
+
     /* helper – filters the *full* list and re-displays */
     private void applyFilter(String text, LocalDate from, LocalDate to) {
         Collection<Order> all = OrderHub.getOrderHub().getAllOrders().values(); // raw map values
@@ -279,7 +399,6 @@ public class ManagerView {
         for (Product p : products) rows.add(new ProductRow(p));
         lowStockTable.setItems(rows);
     }
-
 
     public void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR, msg, ButtonType.OK);

@@ -4,7 +4,6 @@ import ci553.happyshop.catalogue.Product;
 
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -228,9 +227,25 @@ public class DerbyRW implements DatabaseRW {
     }
 
     @Override
-    public List<Product> getAllProducts() {
-        return List.of();
+    public ArrayList<Product> getAllProducts() {
+        ArrayList<Product> list = new ArrayList<>();
+        String sql = "SELECT * FROM ProductTable";
+
+        try (Connection conn = DriverManager.getConnection(dbURL);
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                list.add(makeProObjFromDbRecord(rs));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return list;
     }
+
 
     //warehouse edits an existing product
     public void updateProduct(String id, String des, double price, String iName, int stock) throws SQLException {
