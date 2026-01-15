@@ -164,17 +164,35 @@ public class OrderHub {
 
     // -------------------- history for Manager/Customer --------------------
     public Map<Integer, Order> getAllOrders() {
-        Map<Integer, Order> copy = new LinkedHashMap<>();
-        for (Integer id : orderMap.keySet()) {
-            try {
-                Order o = readOrderFromDisk(id);
-                if (o != null) copy.put(id, o);
-            } catch (Exception e) {
-                System.out.println("Skipping order " + id + ": " + e.getMessage());
-            }
-        }
-        return copy;
+        Map<Integer, Order> all = new LinkedHashMap<>();
+
+        readFolderIntoMap(orderedPath, all);
+        readFolderIntoMap(progressingPath, all);
+        readFolderIntoMap(collectedPath, all);
+
+        return all;
     }
+
+    private void readFolderIntoMap(Path folder, Map<Integer, Order> out) {
+        try {
+            if (!Files.exists(folder) || !Files.isDirectory(folder)) return;
+
+            try (Stream<Path> stream = Files.list(folder)) {
+                stream.filter(p -> p.getFileName().toString().endsWith(".txt"))
+                        .forEach(p -> {
+                            String name = p.getFileName().toString().replace(".txt", "");
+                            try {
+                                int id = Integer.parseInt(name);
+                                Order o = readOrderFromDisk(id);
+                                if (o != null) out.put(id, o);
+                            } catch (Exception ignored) { }
+                        });
+            }
+        } catch (Exception e) {
+            System.out.println("Error reading folder " + folder + ": " + e.getMessage());
+        }
+    }
+
 
     private Order readOrderFromDisk(int orderId) throws IOException {
         Path[] folders = { orderedPath, progressingPath, collectedPath };

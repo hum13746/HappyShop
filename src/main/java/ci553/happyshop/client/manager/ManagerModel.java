@@ -12,10 +12,9 @@ import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 public class ManagerModel {
-
     private ManagerView view;
+    public DatabaseRW databaseRW;
 
-    DatabaseRW databaseRW = DatabaseRWFactory.createDatabaseRW();   // add this back   // remove private & final
 
     public void setView(ManagerView view) {
         this.view = view;

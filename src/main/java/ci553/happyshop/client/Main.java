@@ -46,7 +46,8 @@ public class Main extends Application {
     public void start(Stage primaryStage) throws IOException {
         stage = primaryStage;
         primaryStage.setTitle("HappyShop");
-        sharedDB = DatabaseRWFactory.createDatabaseRW(); // boot once
+        sharedDB = DatabaseRWFactory.createDatabaseRW();
+        OrderHub.getOrderHub().initializeOrderMap();
         showRolePicker();
     }
 
@@ -110,13 +111,9 @@ public class Main extends Application {
      *  MANAGER  (keeps original wiring, uses shared DB)
      * ---------------------------------------------------------- */
     private static void openManager() {
-        OrderHub.getOrderHub().initializeOrderMap();
         ManagerView mv = new ManagerView();
         mv.setSharedDatabase(sharedDB);
-        OrderHub.getOrderHub().initializeOrderMap();
-// inject shared connection
         mv.start(stage);
-        mv.getModel().refreshLowStockTable();   // NEW – use public getter
         addBackButton("Switch to Customer", () -> showRolePicker());
     }
 
@@ -126,17 +123,29 @@ public class Main extends Application {
     private static void addBackButton(String text, Runnable action) {
         var scene = stage.getScene();
         if (scene == null) return;
-        var root = (javafx.scene.layout.VBox) scene.getRoot();
-        var bar = new javafx.scene.layout.HBox();
-        bar.setAlignment(javafx.geometry.Pos.BOTTOM_RIGHT);
-        bar.setPadding(new javafx.geometry.Insets(10));
 
         var btn = new javafx.scene.control.Button(text);
         btn.getStyleClass().add("login-btn");
         btn.setOnAction(e -> action.run());
-        bar.getChildren().add(btn);
-        root.getChildren().add(bar);
+
+        var bar = new javafx.scene.layout.HBox(btn);
+        bar.setAlignment(javafx.geometry.Pos.BOTTOM_RIGHT);
+        bar.setPadding(new javafx.geometry.Insets(10));
+
+        var root = scene.getRoot();
+
+        // If root is already a VBox, just add the button bar
+        if (root instanceof javafx.scene.layout.VBox vb) {
+            vb.getChildren().add(bar);
+            return;
+        }
+
+        // Otherwise wrap the existing root inside a VBox
+        var wrapper = new javafx.scene.layout.VBox();
+        wrapper.getChildren().addAll(root, bar);
+        scene.setRoot(wrapper);
     }
+
 
 
 

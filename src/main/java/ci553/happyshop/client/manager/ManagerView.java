@@ -329,8 +329,9 @@ public class ManagerView {
                 .sorted(Comparator.comparing(Order::getOrderedDateTime).reversed())
                 .limit(4)
                 .toList();
+
         ObservableList<OrderRow> rows = FXCollections.observableArrayList();
-        for (Order o : orders) {
+        for (Order o : sorted) {   // ✅ use sorted
             rows.add(new OrderRow(
                     String.valueOf(o.getOrderId()),
                     o.getOrderedDateTime(),
@@ -341,6 +342,7 @@ public class ManagerView {
         }
         orderTable.setItems(rows);
     }
+
 
     /* ----------------------------------------------------------
      *  LOW-STOCK TAB
