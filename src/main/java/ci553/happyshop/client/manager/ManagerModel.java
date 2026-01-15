@@ -72,6 +72,7 @@ public class ManagerModel {
             // 3. Lower some stock to ≤ 5
             if (all.size() > 0) {
                 // Lower stock of 0002, 0003, 0004 to ≤ 5
+                databaseRW.updateStock("0001", 3);
                 databaseRW.updateStock("0002", 2);
                 databaseRW.updateStock("0003", 1);
                 databaseRW.updateStock("0004", 4);
