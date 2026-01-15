@@ -263,8 +263,12 @@ public class CustomerView {
         btnClose.setStyle(UIStyle.buttonStyle);
         btnClose.setOnAction(this::buttonClicked);
 
+        Button btnBack = new Button("← Back to Login");
+        btnBack.getStyleClass().add("login-btn");
+        btnBack.setOnAction(e -> ci553.happyshop.client.Main.showRolePicker());
+
         /*  button bar  */
-        HBox btnBar = new HBox(10, btnPay, btnClose);
+        HBox btnBar = new HBox(10, btnPay, btnClose, btnBack);
         btnBar.setAlignment(Pos.CENTER);
 
         VBox vb = new VBox(15, laTitle, taReceipt, btnBar);

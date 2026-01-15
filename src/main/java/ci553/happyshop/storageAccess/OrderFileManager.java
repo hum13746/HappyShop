@@ -86,7 +86,8 @@ public class OrderFileManager {
         Path sourcePath = sourceDir.resolve(orderFileName);
         Path targetPath = targetDir.resolve(orderFileName);
         if (Files.exists(sourcePath)) {
-            updateOrderStateAndTime(sourceDir,orderId,newState); //Edit the file to update order state and add time
+            updateOrderStateAndTime(sourceDir,orderId,newState);
+            Files.createDirectories(targetDir);
             if(!sourceDir.equals(targetDir)) //Move the file only if the source and destination are different
                 Files.move(sourcePath,targetPath);
             return true;

@@ -5,6 +5,7 @@ module ci553.happyshop {
     requires javafx.graphics;
 
 
+
     opens ci553.happyshop to javafx.fxml;
     opens ci553.happyshop.client to javafx.fxml;
     opens ci553.happyshop.client.customer;
@@ -12,7 +13,7 @@ module ci553.happyshop {
     opens ci553.happyshop.client.orderTracker;
     opens ci553.happyshop.client.warehouse;
     opens ci553.happyshop.client.emergency;
-    opens ci553.happyshop.client.manager to javafx.base;
+
     exports ci553.happyshop;
     exports ci553.happyshop.client;
     exports ci553.happyshop.utility;
@@ -20,5 +21,6 @@ module ci553.happyshop {
     exports ci553.happyshop.client.orderTracker;
     exports ci553.happyshop.client.emergency;
     exports ci553.happyshop.systemSetup;
+    exports ci553.happyshop.orderManagement;
 
 }

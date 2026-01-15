@@ -14,7 +14,8 @@ import java.util.stream.Collectors;
 public class ManagerModel {
 
     private ManagerView view;
-    private final DatabaseRW databaseRW = DatabaseRWFactory.createDatabaseRW();
+
+    DatabaseRW databaseRW = DatabaseRWFactory.createDatabaseRW();   // add this back   // remove private & final
 
     public void setView(ManagerView view) {
         this.view = view;
@@ -31,25 +32,10 @@ public class ManagerModel {
     }
 
     public void refreshOrderList() {
-        // Real orders from hub
         Collection<Order> real = OrderHub.getOrderHub().getAllOrders().values();
-        if (real.isEmpty()) {
-            // Seed one dummy order for demo
-            try {
-                Product p = databaseRW.searchByProductId("0001");
-                if (p != null) {
-                    p.setOrderedQuantity(1);
-                    ArrayList<Product> list = new ArrayList<>();
-                    list.add(p);
-                    Order dummy = OrderHub.getOrderHub().newOrder(list);
-
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
         view.displayOrders(real);
     }
+
 
     public ArrayList<Product> getLowStock(int threshold) throws SQLException {
         return databaseRW.getLowStockProducts(threshold);
@@ -62,6 +48,10 @@ public class ManagerModel {
 
     public ArrayList<Product> getAllProducts() throws SQLException {
         return databaseRW.getAllProducts(); // correct spelling
+    }
+
+    public ManagerModel(){
+        databaseRW = DatabaseRWFactory.createDatabaseRW();
     }
     public void refreshLowStockTable() {
         try {

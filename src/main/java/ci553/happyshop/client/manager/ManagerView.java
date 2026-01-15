@@ -5,6 +5,7 @@ import ci553.happyshop.catalogue.Product;
 import ci553.happyshop.orderManagement.OrderHub;
 import ci553.happyshop.client.manager.ManagerModel;
 import ci553.happyshop.client.manager.ManagerController;
+import ci553.happyshop.storageAccess.DatabaseRW;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Pos;
@@ -29,7 +30,7 @@ import javafx.scene.control.Spinner;
 import javafx.scene.control.TableCell;
 
 public class ManagerView {
-
+    public ManagerModel getModel(){ return model; }
     private ManagerController controller = new ManagerController();
     private ManagerModel model = new ManagerModel();
 
@@ -72,7 +73,7 @@ public class ManagerView {
 
         Button backBtn = new Button("← Back to Login");
         backBtn.getStyleClass().add("manager-btn");
-        backBtn.setOnAction(e -> { window.close(); });
+        backBtn.setOnAction(e -> ci553.happyshop.client.Main.showRolePicker());
 
         HBox bottom = new HBox(backBtn);
         bottom.setAlignment(Pos.BOTTOM_RIGHT);
@@ -355,6 +356,10 @@ public class ManagerView {
         root.getStyleClass().add("manager-card");
         root.setPadding(new Insets(15));
         return root;
+    }
+
+    public void setSharedDatabase(DatabaseRW db){
+        model.databaseRW = db;
     }
 
     private void buildLowStockTable() {

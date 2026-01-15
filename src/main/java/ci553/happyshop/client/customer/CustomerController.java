@@ -44,17 +44,23 @@ public class CustomerController {
     /* ------------------------------------------------------------------ */
     /*  Pay button: mark the newest Ordered order as Paid/Collected        */
     /* ------------------------------------------------------------------ */
-    private void payOrder() throws SQLException {
+    private void payOrder() {
         OrderHub hub = OrderHub.getOrderHub();
 
         hub.getAllOrders().values()
                 .stream()
                 .filter(o -> o.getState() == OrderState.Ordered)
                 .max(Comparator.comparing(Order::getOrderedDateTime))
-                .ifPresent(o -> {
-                    o.setState(OrderState.Collected);   // or OrderState.Paid if you add it
-                    cusView.refreshOrderTable();        // update live-status table
-                    cusView.showInfo("Payment accepted – order #" + o.getOrderId() + " is now completed.");
-                });
+                .ifPresentOrElse(o -> {
+                    try {
+                        hub.changeOrderStateMoveFile(o.getOrderId(), OrderState.Collected);
+                        cusView.refreshOrderTable();
+                        cusView.showInfo("Payment accepted – order #" + o.getOrderId() + " completed.");
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                        cusView.showInfo("Payment failed: " + ex.getMessage());
+                    }
+                }, () -> cusView.showInfo("No unpaid orders found."));
     }
+
 }

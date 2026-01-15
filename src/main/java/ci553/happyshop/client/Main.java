@@ -1,5 +1,7 @@
 package ci553.happyshop.client;
+import ci553.happyshop.client.manager.ManagerView;
 import ci553.happyshop.LoginDialog;
+import ci553.happyshop.ManagerLoginDialog;
 import ci553.happyshop.client.customer.*;
 import ci553.happyshop.client.emergency.EmergencyExit;
 import ci553.happyshop.client.manager.ManagerClient;
@@ -13,7 +15,14 @@ import ci553.happyshop.storageAccess.DatabaseRW;
 import ci553.happyshop.storageAccess.DatabaseRWFactory;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+
 import java.io.IOException;
 
 /**
@@ -22,6 +31,9 @@ import java.io.IOException;
  * @author  Shine Shan University of Brighton
  */
 public class Main extends Application {
+    private static Stage stage;   // keep the same Stage alive
+    private Stage primaryStage;          // keep one Stage alive
+    private static DatabaseRW sharedDB;
 
     public static void main(String[] args) {
         launch(args);
@@ -32,20 +44,14 @@ public class Main extends Application {
      * ---------------------------------------------------------- */
     @Override
     public void start(Stage primaryStage) throws IOException {
-        LoginDialog.Role role = LoginDialog.show();
-        if (role == null) {           // user closed the box
-            Platform.exit();
-            return;
-        }
-
-        switch (role) {
-            case CUSTOMER -> startCustomerClient();
-            case MANAGER  -> startManagerClient();   // FIXED capital C
-        }
+        stage = primaryStage;
+        primaryStage.setTitle("HappyShop");
+        sharedDB = DatabaseRWFactory.createDatabaseRW(); // boot once
+        showRolePicker();
     }
 
     /* ----------------------------------------------------------
-     *  ROLE-SPECIFIC LAUNCHERS
+     *  ROLE-SPECIFIC LAUNCHERS  (restore these)
      * ---------------------------------------------------------- */
     private void startCustomerClient() {
         CustomerView cusView = new CustomerView();
@@ -56,13 +62,14 @@ public class Main extends Application {
         cusView.cusController = cusController;
         cusController.cusModel = cusModel;
         cusModel.cusView = cusView;
-        cusModel.databaseRW = databaseRW;
+        cusModel.databaseRW = sharedDB;
         cusView.start(new Stage());
     }
 
-    private void startManagerClient() {              // FIXED capital C
+    private void startManagerClient() {
         new ManagerClient().start(new Stage());
     }
+    /* inject bottom-right switch button */
 
     /* --------------  ORIGINAL HELPER METHODS  ---------------- */
     private void startPickerClient() {
@@ -85,6 +92,54 @@ public class Main extends Application {
         OrderHub.getOrderHub().initializeOrderMap();
     }
 
+    private static void openCustomer() {
+        CustomerView cusView = new CustomerView();
+        CustomerController cusController = new CustomerController();
+        CustomerModel cusModel = new CustomerModel();
+
+        cusView.cusController = cusController;
+        cusController.cusModel = cusModel;
+        cusModel.cusView = cusView;
+        cusModel.databaseRW = sharedDB;   // shared connection
+
+        cusView.start(stage);
+        addBackButton("Switch to Manager", () -> showRolePicker());
+    }
+
+    /* ----------------------------------------------------------
+     *  MANAGER  (keeps original wiring, uses shared DB)
+     * ---------------------------------------------------------- */
+    private static void openManager() {
+        OrderHub.getOrderHub().initializeOrderMap();
+        ManagerView mv = new ManagerView();
+        mv.setSharedDatabase(sharedDB);
+        OrderHub.getOrderHub().initializeOrderMap();
+// inject shared connection
+        mv.start(stage);
+        mv.getModel().refreshLowStockTable();   // NEW – use public getter
+        addBackButton("Switch to Customer", () -> showRolePicker());
+    }
+
+    /* ----------------------------------------------------------
+     *  BACK-TO-LOGIN BUTTON  (adds to current scene)
+     * ---------------------------------------------------------- */
+    private static void addBackButton(String text, Runnable action) {
+        var scene = stage.getScene();
+        if (scene == null) return;
+        var root = (javafx.scene.layout.VBox) scene.getRoot();
+        var bar = new javafx.scene.layout.HBox();
+        bar.setAlignment(javafx.geometry.Pos.BOTTOM_RIGHT);
+        bar.setPadding(new javafx.geometry.Insets(10));
+
+        var btn = new javafx.scene.control.Button(text);
+        btn.getStyleClass().add("login-btn");
+        btn.setOnAction(e -> action.run());
+        bar.getChildren().add(btn);
+        root.getChildren().add(bar);
+    }
+
+
+
     private void startWarehouseClient() {
         WarehouseView view = new WarehouseView();
         WarehouseController controller = new WarehouseController();
@@ -104,12 +159,17 @@ public class Main extends Application {
         historyWindow.warehouseView = view;
         alertSimulator.warehouseView = view;
     }
+    public static void showRolePicker() {
+        stage.hide();
+        LoginDialog.Role role = LoginDialog.show();
+        if (role == null) Platform.exit();
+        switch (role) {
+            case CUSTOMER -> openCustomer();
+            case MANAGER  -> openManager();
+        }
+    }
 
     private void startEmergencyExit() {
         EmergencyExit.getEmergencyExit();
     }
 }
-
-
-
-
