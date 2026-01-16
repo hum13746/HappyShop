@@ -56,7 +56,7 @@ public class OrderFileManager {
             Files.createFile(path);
             try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
                 /*  fixed header – matches what the parser expects  */
-                writer.write("OrderId: " + orderId);
+                writer.write("Order ID: " + orderId);
                 writer.newLine();
                 writer.write("State: Ordered");
                 writer.newLine();

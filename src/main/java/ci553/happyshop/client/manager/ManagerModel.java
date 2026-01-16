@@ -64,6 +64,7 @@ public class ManagerModel {
                 databaseRW.insertNewProduct("0002", "Mouse", 19.99, "0002.jpg", 2);
                 databaseRW.insertNewProduct("0003", "Cable", 4.99, "0003.jpg", 1);
                 databaseRW.insertNewProduct("0004", "Keyboard", 49.99, "0004.jpg", 4);
+                databaseRW.insertNewProduct("0005", "USB Drive", 6.99, "0005.jpg", 5);
                 all = getAllProducts(); // reload
                 System.out.println("DEBUG – seeded 4 products, now " + all.size() + " items");
             }
@@ -75,6 +76,7 @@ public class ManagerModel {
                 databaseRW.updateStock("0002", 2);
                 databaseRW.updateStock("0003", 1);
                 databaseRW.updateStock("0004", 4);
+                databaseRW.updateStock("0005", 5);
                 all = getAllProducts(); // reload
                 System.out.println("DEBUG – lowered some stock, now " + all.size() + " items");
             }
