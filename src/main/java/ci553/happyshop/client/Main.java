@@ -1,6 +1,7 @@
 package ci553.happyshop.client;
 import ci553.happyshop.client.manager.ManagerView;
 import ci553.happyshop.LoginDialog;
+
 import ci553.happyshop.ManagerLoginDialog;
 import ci553.happyshop.client.customer.*;
 import ci553.happyshop.client.emergency.EmergencyExit;
